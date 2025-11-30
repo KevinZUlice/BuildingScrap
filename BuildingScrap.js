@@ -97,6 +97,19 @@
         return isNaN(num) ? "" : num.toString();
     }
 
+    // stažení souboru (txt/csv)
+    function downloadFile(filename, content, mimeType) {
+        const blob = new Blob([content], { type: mimeType || "text/plain;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
     async function run() {
         const lines = [];
 
@@ -150,7 +163,12 @@
 
         const output = lines.join("\r\n");
 
+        // ---- overlay stejně jako u UnitScrap ----
+        const old = document.getElementById("buildingscrap-overlay");
+        if (old) old.remove();
+
         const overlay = document.createElement("div");
+        overlay.id = "buildingscrap-overlay";
         overlay.style.position = "fixed";
         overlay.style.top = "0";
         overlay.style.left = "0";
@@ -167,26 +185,124 @@
         box.style.border = "2px solid #804000";
         box.style.padding = "10px";
         box.style.width = "80%";
+        box.style.maxWidth = "900px";
         box.style.height = "70%";
         box.style.boxSizing = "border-box";
         box.style.display = "flex";
         box.style.flexDirection = "column";
+        box.style.gap = "5px";
+
+        const title = document.createElement("div");
+        title.textContent = "BuildingScrap - Export budov – zkopíruj / stáhni soubor";
+        title.style.fontWeight = "bold";
+        title.style.marginBottom = "5px";
+
+        const ta = document.createElement("textarea");
+        ta.style.flex = "1";
+        ta.style.width = "100%";
+        ta.style.boxSizing = "border-box";
+        ta.value = output;
+
+        const btnRow = document.createElement("div");
+        btnRow.style.display = "flex";
+        btnRow.style.justifyContent = "space-between";
+        btnRow.style.marginTop = "5px";
+        btnRow.style.gap = "10px";
+        btnRow.style.alignItems = "center";
+        btnRow.style.flexWrap = "wrap";
+
+        const leftGroup = document.createElement("div");
+        leftGroup.style.display = "flex";
+        leftGroup.style.gap = "10px";
+        leftGroup.style.alignItems = "center";
+        leftGroup.style.flexWrap = "wrap";
+
+        const info = document.createElement("span");
+        info.textContent = "Ctrl+A, Ctrl+C → zkopíruj vše.";
+
+        const copyBtn = document.createElement("button");
+        copyBtn.textContent = "Zkopírovat RAW data";
+        copyBtn.style.cursor = "pointer";
+        copyBtn.onclick = async () => {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                try {
+                    await navigator.clipboard.writeText(output);
+                    copyBtn.textContent = "Zkopírováno!";
+                    setTimeout(() => (copyBtn.textContent = "Zkopírovat RAW data"), 1500);
+                    return;
+                } catch (e) {
+                    console.warn("Clipboard API selhalo, použiju označení textu.", e);
+                }
+            }
+            ta.focus();
+            ta.select();
+            alert("Obsah je označen – stiskni Ctrl+C pro zkopírování.");
+        };
+
+        const txtBtn = document.createElement("button");
+        txtBtn.textContent = "Stáhnout .txt";
+        txtBtn.style.cursor = "pointer";
+        txtBtn.onclick = () => {
+            downloadFile("buildingscrap_export.txt", output + "\r\n", "text/plain;charset=utf-8;");
+        };
+
+        const csvBtn = document.createElement("button");
+        csvBtn.textContent = "Stáhnout CSV (Excel)";
+        csvBtn.style.cursor = "pointer";
+        csvBtn.onclick = () => {
+            // hlavička pro CSV
+            const buildingLabels = {
+                hlavni: "Hlavní budova",
+                kasarna: "Kasárna",
+                staje: "Stáje",
+                dilna: "Dílna",
+                vez: "Věž",
+                pansky_dvur: "Panský dvůr",
+                kovarna: "Kovárna",
+                nadvori: "Nádvoří",
+                socha: "Socha",
+                trziste: "Tržiště",
+                drevorubec: "Dřevorubec",
+                lom: "Lom na hlínu",
+                zelezny_dvur: "Železný důl",
+                selsky_dvur: "Selský dvůr",
+                skladiste: "Skladiště",
+                skrys: "Skrýš",
+                hradby: "Hradby"
+            };
+
+            const header = [
+                "Hráč",
+                "Vesnice",
+                "X",
+                "Y",
+                "Body",
+                ...buildingDefs.map(b => buildingLabels[b] || b)
+            ].join(";");
+
+            const csvContent = header + "\r\n" + output;
+            downloadFile("buildingscrap_export.csv", csvContent, "text/csv;charset=utf-8;");
+        };
 
         const closeBtn = document.createElement("button");
         closeBtn.textContent = "Zavřít";
-        closeBtn.style.marginBottom = "5px";
+        closeBtn.style.cursor = "pointer";
         closeBtn.onclick = function () {
             document.body.removeChild(overlay);
             window.BuildingScrapRunning = false;
         };
 
-        const ta = document.createElement("textarea");
-        ta.style.flex = "1";
-        ta.style.width = "100%";
-        ta.value = output;
+        leftGroup.appendChild(info);
+        leftGroup.appendChild(copyBtn);
+        leftGroup.appendChild(txtBtn);
+        leftGroup.appendChild(csvBtn);
 
-        box.appendChild(closeBtn);
+        btnRow.appendChild(leftGroup);
+        btnRow.appendChild(closeBtn);
+
+        box.appendChild(title);
         box.appendChild(ta);
+        box.appendChild(btnRow);
         overlay.appendChild(box);
         document.body.appendChild(overlay);
 
@@ -200,3 +316,4 @@
         window.BuildingScrapRunning = false;
     });
 })();
+
